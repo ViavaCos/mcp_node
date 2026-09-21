@@ -1,0 +1,14 @@
+{
+  "name": "mcp-node-data-server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "电商销售数据服务：5 个查询接口",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}

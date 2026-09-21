@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="pEA3avUEZFGra5gRRDRmam">
+<head data-page-node-id="TtiykaPhqq2g3eNkBu7m5x">
+  <meta charset="UTF-8" data-page-node-id="YpTVDUPY9IRAPFyRllFfwz" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="G4kOSob3JONqVSOJ76wEhs" />
+  <title>电商销售看板 · MCP 驱动</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #f5f9f6;
+      --card: #ffffff;
+      --primary: #2e9e6b;
+      --primary-soft: #e8f6ef;
+      --accent: #3b9ad9;
+      --text: #1f2d27;
+      --muted: #6b7c75;
+      --border: #e3ece7;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    header {
+      background: linear-gradient(120deg, #2e9e6b, #3b9ad9);
+      color: #fff;
+      padding: 22px 28px;
+    }
+    header h1 { margin: 0; font-size: 20px; }
+    header p { margin: 6px 0 0; opacity: .9; font-size: 13px; }
+    .wrap { max-width: 1180px; margin: 0 auto; padding: 20px; }
+    .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 18px; }
+    .kpi {
+      background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+      padding: 16px; box-shadow: 0 2px 8px rgba(46,158,107,.06);
+    }
+    .kpi .label { color: var(--muted); font-size: 13px; }
+    .kpi .value { font-size: 24px; font-weight: 700; margin-top: 6px; color: var(--primary); }
+    .kpi .sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .panel {
+      background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px;
+      box-shadow: 0 2px 8px rgba(46,158,107,.06);
+    }
+    .panel h3 { margin: 0 0 12px; font-size: 15px; }
+    .panel.full { grid-column: 1 / -1; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+    th { color: var(--muted); font-weight: 600; }
+    .play { margin-top: 20px; }
+    .play .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 10px; }
+    select, input {
+      padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; background: #fff;
+    }
+    button {
+      padding: 8px 16px; border: none; border-radius: 8px; background: var(--primary); color: #fff;
+      cursor: pointer; font-size: 13px;
+    }
+    button:hover { opacity: .92; }
+    pre {
+      background: #0f1b16; color: #d6f5e6; padding: 14px; border-radius: 10px; overflow: auto;
+      font-size: 12px; max-height: 320px;
+    }
+    .muted { color: var(--muted); font-size: 12px; }
+    .tag { display: inline-block; background: var(--primary-soft); color: var(--primary); border-radius: 6px; padding: 2px 8px; font-size: 12px; margin-right: 6px; }
+  </style>
+</head>
+<body data-page-node-id="DeNYSy08SiZpum1q0VcmPZ">
+  <header data-page-node-id="RrE41Qq2Y3QdXmQ7ASBS6R">
+    <h1 data-page-node-id="r8SkHLHZI9nHAVtBYzbPuZ">电商销售看板 · MCP 驱动</h1>
+    <p data-page-node-id="jtfr7uBneHKWUw1U3EVq0h">数据经 MCP 服务（stdio）的 5 个工具实时取数 · 商品排行 / 年度汇总 / 品类占比 / 月度趋势 / 活跃用户</p>
+  </header>
+
+  <div class="wrap" data-page-node-id="r3YpmFEy4ZOKyEMZUMAmnt">
+    <div class="kpis" id="kpis" data-page-node-id="3h0RJjE3AwCB9IlfSyuFUa"></div>
+
+    <div class="grid" data-page-node-id="DikfqdpEQRHnEx3oRNdCAg">
+      <div class="panel" data-page-node-id="Azt6389HAZuXbFtUuIFYrk">
+        <h3 data-page-node-id="CbdOkGrgoiLebTCVrGLpqy">商品销售额 TOP 10</h3>
+        <canvas id="chartProduct" height="260" data-page-node-id="B1cO2hVvM5oX3gvjzo16ih"></canvas>
+      </div>
+      <div class="panel" data-page-node-id="uMZzND9E1pjaA2vCFWfHrB">
+        <h3 data-page-node-id="EoEmDWtpbVir89KB1BGEk2">品类销售额占比</h3>
+        <canvas id="chartCat" height="260" data-page-node-id="E6CXXg6iSDyDFMexgjrvQ0"></canvas>
+      </div>
+      <div class="panel full" data-page-node-id="pgRVv2WrPLuYHfGx3HW6wX">
+        <h3 data-page-node-id="VzZNMYZcdarbcyncpY5J9h">2025 年月度销售趋势</h3>
+        <canvas id="chartTrend" height="120" data-page-node-id="pqsuZoFYkKTP0aQ4jLl6LT"></canvas>
+      </div>
+      <div class="panel" data-page-node-id="ayKKLO7tp6gwVUlFUns8Q5">
+        <h3 data-page-node-id="szWKYJPBMl7La5vTDvHDOE">地区销售额排行</h3>
+        <canvas id="chartRegion" height="240" data-page-node-id="hrUwYKZzyv7SqLoYTiLdcN"></canvas>
+      </div>
+      <div class="panel" data-page-node-id="6XNPpnOgsfAH5DxIAgLRTF">
+        <h3 data-page-node-id="mx1JWyyhJIc79HDK3UVimj">2025 活跃用户 TOP 10（按消费金额）</h3>
+        <table id="userTable" data-page-node-id="KcWQ7dZ0WShOX6O5LcZFpS"><thead data-page-node-id="vImqiqEsPvguXuYblJGGrM"><tr data-page-node-id="iLw2BchIl0i5E4aBojuJQ3"><th data-page-node-id="phRdQtZ9pK3xlmWVDYMV65">用户</th><th data-page-node-id="y34YkcwmqI6IoEQGoS5L0n">地区</th><th data-page-node-id="VBOi6CAWfoyBvkwpJDVRCs">订单数</th><th data-page-node-id="IiUn76fJNeAaZlCRhm9nc9">消费金额</th></tr></thead><tbody data-page-node-id="zQ3ChGMsFzWRZrAnrfFXUl"></tbody></table>
+      </div>
+    </div>
+
+    <div class="panel play full" data-page-node-id="le4VAYZhevHGW8dt2Ef92A">
+      <h3 data-page-node-id="czv1mMUMkDMSXaaThNyOkt">🛠 工具试玩面板（直接调用 5 个 MCP 工具）</h3>
+      <div class="row" data-page-node-id="4yalNgjtcBikRb16ZnzD0N">
+        <select id="toolSel" data-page-node-id="OvnCZ3EemGcSBd4EyRrHmF"></select>
+        <span id="toolInputs" class="muted" data-page-node-id="xhZNxxYIppVtRk0apCwK5v"></span>
+        <button id="callBtn" data-page-node-id="8PAQzjzYnjx9fyfx2GrV5m">调用工具</button>
+      </div>
+      <div class="muted" data-page-node-id="7XU0QVgoaYiB0DUEKWdQQ1">提示：参数留空表示不传。下面是工具的原始 JSON 返回。</div>
+      <pre id="toolOut" data-page-node-id="QoaH2vQbzwV4PIiJJxt5Z0">// 选择工具并点击「调用工具」</pre>
+    </div>
+  </div>
+
+  <script>
+    const TOOLS = {
+      get_sales_ranking: { label: '销售额排行榜', params: { type: 'product', period: 'all', limit: 10 } },
+      get_annual_summary: { label: '年度汇总', params: { year: '2025' } },
+      query_products: { label: '商品查询', params: { category: '', keyword: '', limit: 20 } },
+      query_orders: { label: '订单分页查询', params: { region: '', year: '2025', category: '', page: 1, pageSize: 20 } },
+      get_active_users: { label: '活跃用户排行', params: { year: '2025', region: '', limit: 10 } },
+    };
+    const NUMERIC = new Set(['limit', 'page', 'pageSize']);
+
+    const fmtMoney = (n) => '¥' + Number(n).toLocaleString('zh-CN', { maximumFractionDigits: 0 });
+
+    async function loadDashboard() {
+      const r = await fetch('/api/dashboard');
+      const d = await r.json();
+      if (d.error) { alert('看板加载失败：' + d.error); return; }
+      const s = d.summary;
+      document.getElementById('kpis').innerHTML = `
+        <div class="kpi"><div class="label">2025 总销售额</div><div class="value">${fmtMoney(s.totalAmount)}</div><div class="sub">订单数 ${s.totalOrders}</div></div>
+        <div class="kpi"><div class="label">客单价</div><div class="value">${fmtMoney(s.avgOrderValue)}</div><div class="sub">总销量 ${s.totalQuantity} 件</div></div>
+        <div class="kpi"><div class="label">TOP 地区</div><div class="value">${s.topRegion ? s.topRegion.region : '-'}</div><div class="sub">${s.topRegion ? fmtMoney(s.topRegion.amount) : ''}</div></div>
+        <div class="kpi"><div class="label">同比 ${s.yoy ? s.yoy.prevYear : '-'}</div><div class="value">${s.yoy ? (s.yoy.growth >= 0 ? '+' : '') + s.yoy.growth + '%' : 'N/A'}</div><div class="sub">${s.yoy ? '上年 ' + fmtMoney(s.yoy.prevAmount) : '无上年数据'}</div></div>
+      `;
+
+      new Chart(document.getElementById('chartProduct'), {
+        type: 'bar',
+        data: {
+          labels: d.productRank.items.map((x) => x.name),
+          datasets: [{ label: '销售额', data: d.productRank.items.map((x) => x.totalAmount), backgroundColor: '#2e9e6b' }],
+        },
+        options: { indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { ticks: { callback: (v) => fmtMoney(v) } } } },
+      });
+
+      new Chart(document.getElementById('chartCat'), {
+        type: 'doughnut',
+        data: {
+          labels: d.catRank.items.map((x) => x.name),
+          datasets: [{ data: d.catRank.items.map((x) => x.totalAmount), backgroundColor: ['#2e9e6b', '#3b9ad9', '#f0a830', '#e06666', '#8e7cc3', '#46bdc6', '#b6d96b', '#d98cb3'] }],
+        },
+        options: { plugins: { legend: { position: 'right' } } },
+      });
+
+      new Chart(document.getElementById('chartTrend'), {
+        type: 'line',
+        data: {
+          labels: s.monthlyTrend.map((m) => m.month + '月'),
+          datasets: [{ label: '月度销售额', data: s.monthlyTrend.map((m) => m.amount), borderColor: '#3b9ad9', backgroundColor: 'rgba(59,154,217,.15)', fill: true, tension: .3 }],
+        },
+        options: { plugins: { legend: { display: false } }, scales: { y: { ticks: { callback: (v) => fmtMoney(v) } } } },
+      });
+
+      new Chart(document.getElementById('chartRegion'), {
+        type: 'bar',
+        data: {
+          labels: d.regionRank.items.map((x) => x.name),
+          datasets: [{ label: '销售额', data: d.regionRank.items.map((x) => x.totalAmount), backgroundColor: '#3b9ad9' }],
+        },
+        options: { plugins: { legend: { display: false } }, scales: { y: { ticks: { callback: (v) => fmtMoney(v) } } } },
+      });
+
+      const tb = document.querySelector('#userTable tbody');
+      tb.innerHTML = d.users.items.map((u) => `<tr><td>${u.name}</td><td>${u.region}</td><td>${u.orderCount}</td><td>${fmtMoney(u.totalAmount)}</td></tr>`).join('');
+    }
+
+    // 工具试玩面板
+    const sel = document.getElementById('toolSel');
+    Object.entries(TOOLS).forEach(([k, v]) => {
+      const o = document.createElement('option'); o.value = k; o.textContent = v.label + '（' + k + '）'; sel.appendChild(o);
+    });
+    function renderInputs() {
+      const t = TOOLS[sel.value];
+      document.getElementById('toolInputs').innerHTML = Object.keys(t.params)
+        .map((p) => `<input data-p="${p}" placeholder="${p}" value="${t.params[p]}" size="${p.length + 4}" />`)
+        .join(' ');
+    }
+    sel.addEventListener('change', renderInputs);
+    renderInputs();
+
+    document.getElementById('callBtn').addEventListener('click', async () => {
+      const name = sel.value;
+      const inputs = document.querySelectorAll('#toolInputs input');
+      const qs = new URLSearchParams();
+      inputs.forEach((i) => { if (i.value !== '') qs.set(i.dataset.p, i.value); });
+      const r = await fetch('/api/tool/' + name + '?' + qs.toString());
+      const d = await r.json();
+      document.getElementById('toolOut').textContent = JSON.stringify(d, null, 2);
+    });
+
+    loadDashboard().catch((e) => alert('加载出错：' + e.message));
+  </script>
+</body>
+</html>

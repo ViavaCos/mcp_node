@@ -1,0 +1,14 @@
+{
+  "name": "mcp-node-demo-agent",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "LLM Agent 演示：通过 MCP 工具基于 5 个接口做任意分析（未配密钥时跑脚本化降级）",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0"
+  }
+}
