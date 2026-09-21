@@ -1,0 +1,52 @@
+# mcp-server/deploy/nginx.conf.example
+# 路线 A 远程部署示例：在 MCP 服务前加 HTTPS + Bearer 鉴权反向代理
+# 用法：
+#   1) 将 server_name / ssl 证书路径改为你的域名与证书
+#   2) 将下面的 ${MCP_TOKEN} 替换为真实 token，或用 `envsubst` 注入环境变量
+#   3) 本文件放到 nginx 的 conf.d/ 下并 reload
+#
+# 客户端接入地址即：https://mcp.example.com/mcp  （需在请求头带 Authorization: Bearer <token>）
+
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name mcp.example.com;
+
+    ssl_certificate     /etc/ssl/certs/fullchain.pem;
+    ssl_certificate_key /etc/ssl/private/privkey.pem;
+
+    # 大请求体（工具参数/响应可能较大）与长超时（SSE 流式响应）
+    client_max_body_size 8m;
+
+    location /mcp {
+        # 强制 Bearer 鉴权：仅放行携带正确 token 的请求
+        # 生产建议改为 auth_request 指向独立 OAuth/校验服务
+        if ($http_authorization != "Bearer ${MCP_TOKEN}") {
+            return 401;
+        }
+
+        proxy_pass http://127.0.0.1:8089/mcp;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Streamable HTTP 需要 1.1 + 关闭缓冲
+        proxy_http_version 1.1;
+        proxy_set_header   Connection "";
+        proxy_buffering    off;
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+    }
+
+    location /health {
+        proxy_pass http://127.0.0.1:8089/health;
+    }
+}
+
+# 可选：HTTP 80 强制跳转 HTTPS
+server {
+    listen 80;
+    server_name mcp.example.com;
+    return 301 https://$host$request_uri;
+}

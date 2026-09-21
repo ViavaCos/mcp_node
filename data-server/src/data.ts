@@ -1,9 +1,32 @@
-// data-server/src/data.js
+// data-server/src/data.ts
 // 电商销售内存数据集 + 5 个聚合查询函数（确定性种子，便于复现）
-'use strict';
+import type {
+  Product,
+  User,
+  Order,
+  Category,
+  RankItem,
+  RankType,
+  Period,
+  MonthlyPoint,
+  CategoryBreakdownItem,
+  RegionAmount,
+  ProductAmount,
+  RankingResult,
+  AnnualSummary,
+  ProductQueryResult,
+  OrderQueryResult,
+  ActiveUserItem,
+  ActiveUserResult,
+  SalesRankingParams,
+  AnnualSummaryParams,
+  QueryProductsParams,
+  QueryOrdersParams,
+  ActiveUsersParams,
+} from './types.js';
 
 // ---- 确定性随机数（mulberry32）----
-function mulberry32(seed) {
+function mulberry32(seed: number): () => number {
   return function () {
     seed |= 0;
     seed = (seed + 0x6d2b79f5) | 0;
@@ -13,14 +36,14 @@ function mulberry32(seed) {
   };
 }
 const rand = mulberry32(20240921);
-const randInt = (min, max) => Math.floor(rand() * (max - min + 1)) + min;
-const pick = (arr) => arr[Math.floor(rand() * arr.length)];
-const round2 = (n) => Math.round(n * 100) / 100;
+const randInt = (min: number, max: number): number => Math.floor(rand() * (max - min + 1)) + min;
+const pick = <T>(arr: T[]): T => arr[Math.floor(rand() * arr.length)];
+const round2 = (n: number): number => Math.round(n * 100) / 100;
 
 // ---- 维度定义 ----
-export const regions = ['华东', '华北', '华南', '西部', '中部'];
+export const regions: string[] = ['华东', '华北', '华南', '西部', '中部'];
 
-export const categories = [
+export const categories: Category[] = [
   { id: 'c1', name: '手机数码' },
   { id: 'c2', name: '家用电器' },
   { id: 'c3', name: '服饰鞋包' },
@@ -30,9 +53,9 @@ export const categories = [
   { id: 'c7', name: '运动户外' },
   { id: 'c8', name: '家居家装' },
 ];
-const categoryMap = new Map(categories.map((c) => [c.id, c]));
+const categoryMap = new Map<string, Category>(categories.map((c) => [c.id, c]));
 
-const brandByCat = {
+const brandByCat: Record<string, string[]> = {
   c1: ['极光', '星睿', '云鲸', '锐界'],
   c2: ['暖阳', '清风', '万家乐', '鼎沸'],
   c3: ['素白', '墨韵', '潮π', '原野'],
@@ -42,7 +65,7 @@ const brandByCat = {
   c7: ['驰野', '劲风', '岩途', '凌云'],
   c8: ['木言', '栖居', '简物', '筑梦'],
 };
-const nounByCat = {
+const nounByCat: Record<string, string[]> = {
   c1: ['旗舰手机', '蓝牙耳机', '平板电脑', '智能手表'],
   c2: ['变频空调', '滚筒洗衣机', '空气炸锅', '电饭煲'],
   c3: ['风衣', '运动鞋', '真皮背包', '针织衫'],
@@ -53,7 +76,7 @@ const nounByCat = {
   c8: ['实木餐桌', '收纳柜', '乳胶枕', '香薰灯'],
 };
 const modelSuffix = ['Pro', 'Air', '2024款', 'Max', 'Lite', 'Plus', ''];
-const priceRange = {
+const priceRange: Record<string, [number, number]> = {
   c1: [999, 6999],
   c2: [299, 5999],
   c3: [59, 1299],
@@ -65,7 +88,7 @@ const priceRange = {
 };
 
 // ---- 商品 ----
-export const products = [];
+export const products: Product[] = [];
 {
   let pid = 1;
   for (const c of categories) {
@@ -89,12 +112,12 @@ export const products = [];
     }
   }
 }
-const productMap = new Map(products.map((p) => [p.id, p]));
+const productMap = new Map<string, Product>(products.map((p) => [p.id, p]));
 
 // ---- 用户 ----
 const surnames = ['王', '李', '张', '刘', '陈', '杨', '赵', '黄', '周', '吴'];
 const givens = ['伟', '芳', '强', '敏', '磊', '洋', '勇', '艳', '杰', '娜', '涛', '静'];
-export const users = [];
+export const users: User[] = [];
 {
   let uid = 1;
   for (let i = 0; i < 300; i++) {
@@ -106,10 +129,10 @@ export const users = [];
     uid++;
   }
 }
-const userMap = new Map(users.map((u) => [u.id, u]));
+const userMap = new Map<string, User>(users.map((u) => [u.id, u]));
 
 // ---- 订单（2024 / 2025 两年）----
-export const orders = [];
+export const orders: Order[] = [];
 {
   let oid = 1;
   const total = 2600;
@@ -147,14 +170,15 @@ export const orders = [];
 }
 
 // ---- 查询函数 ----
-const isSold = (o) => o.status === 'completed';
+const isSold = (o: Order): boolean => o.status === 'completed';
 
-function salesRanking({ type = 'product', period = 'all', limit = 10 }) {
-  const map = new Map();
+function salesRanking({ type = 'product', period = 'all', limit = 10 }: SalesRankingParams = {}): RankingResult {
+  const map = new Map<string, RankItem>();
   for (const o of orders) {
     if (!isSold(o)) continue;
     if (period !== 'all' && String(o.year) !== String(period)) continue;
-    let key, name;
+    let key: string;
+    let name: string;
     if (type === 'product') {
       key = o.productId;
       name = o.productName;
@@ -177,7 +201,7 @@ function salesRanking({ type = 'product', period = 'all', limit = 10 }) {
   return { type, period, metric: 'amount', items };
 }
 
-function annualSummary({ year = '2025' }) {
+function annualSummary({ year = '2025' }: AnnualSummaryParams = {}): AnnualSummary {
   const y = String(year);
   const list = orders.filter((o) => String(o.year) === y && isSold(o));
   const totalAmount = round2(list.reduce((s, o) => s + o.amount, 0));
@@ -185,14 +209,14 @@ function annualSummary({ year = '2025' }) {
   const totalQuantity = list.reduce((s, o) => s + o.quantity, 0);
   const avgOrderValue = totalOrders ? round2(totalAmount / totalOrders) : 0;
 
-  const monthly = Array.from({ length: 12 }, (_, i) => ({
+  const monthly: MonthlyPoint[] = Array.from({ length: 12 }, (_, i) => ({
     month: i + 1,
     amount: 0,
     orders: 0,
   }));
-  const catMap = new Map();
-  const regionMap = new Map();
-  const prodMap = new Map();
+  const catMap = new Map<string, CategoryBreakdownItem>();
+  const regionMap = new Map<string, RegionAmount>();
+  const prodMap = new Map<string, ProductAmount>();
   for (const o of list) {
     monthly[o.month - 1].amount += o.amount;
     monthly[o.month - 1].orders += 1;
@@ -218,7 +242,7 @@ function annualSummary({ year = '2025' }) {
   const prevYear = String(Number(y) - 1);
   const prevList = orders.filter((o) => String(o.year) === prevYear && isSold(o));
   const prevAmount = round2(prevList.reduce((s, o) => s + o.amount, 0));
-  const yoy =
+  const yoy: AnnualSummary['yoy'] =
     prevAmount > 0
       ? {
           prevYear,
@@ -241,7 +265,7 @@ function annualSummary({ year = '2025' }) {
   };
 }
 
-function queryProducts({ category, keyword, limit = 20 } = {}) {
+function queryProducts({ category, keyword, limit = 20 }: QueryProductsParams = {}): ProductQueryResult {
   let list = products.slice();
   if (category) list = list.filter((p) => p.categoryId === category);
   if (keyword) {
@@ -253,7 +277,7 @@ function queryProducts({ category, keyword, limit = 20 } = {}) {
   return { total, items };
 }
 
-function queryOrders({ region, year, category, page = 1, pageSize = 20 } = {}) {
+function queryOrders({ region, year, category, page = 1, pageSize = 20 }: QueryOrdersParams = {}): OrderQueryResult {
   let list = orders.filter(isSold);
   if (region) list = list.filter((o) => o.region === region);
   if (year) list = list.filter((o) => String(o.year) === String(year));
@@ -274,13 +298,14 @@ function queryOrders({ region, year, category, page = 1, pageSize = 20 } = {}) {
   return { total, page: p, pageSize: ps, totalPages: Math.ceil(total / ps), items };
 }
 
-function activeUsers({ year, region, limit = 10 } = {}) {
-  const map = new Map();
+function activeUsers({ year, region, limit = 10 }: ActiveUsersParams = {}): ActiveUserResult {
+  const map = new Map<string, ActiveUserItem>();
   for (const o of orders) {
     if (!isSold(o)) continue;
     if (year && String(o.year) !== String(year)) continue;
     if (region && o.region !== region) continue;
-    const cur = map.get(o.userId) || { userId: o.userId, name: o.userName, region: o.region, orderCount: 0, totalAmount: 0 };
+    const cur =
+      map.get(o.userId) || { userId: o.userId, name: o.userName, region: o.region, orderCount: 0, totalAmount: 0 };
     cur.orderCount += 1;
     cur.totalAmount += o.amount;
     map.set(o.userId, cur);
@@ -291,6 +316,10 @@ function activeUsers({ year, region, limit = 10 } = {}) {
     .slice(0, Math.max(1, Math.min(50, limit)));
   return { year: year || 'all', region: region || 'all', items };
 }
+
+void categoryMap;
+void productMap;
+void userMap;
 
 export const queries = {
   salesRanking,
