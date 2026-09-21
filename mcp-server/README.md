@@ -118,11 +118,13 @@ TRANSPORT=http PORT=8089 DATA_SERVER_URL=http://127.0.0.1:3000 MCP_TOKEN=secret1
 
 | # | 工具名 | 说明 | 参数 |
 |---|---|---|---|
-| 1 | `get_sales_ranking` | 销售额排行榜，维度：商品 / 品类 / 地区 | `type`: product\|category\|region<br>`period`: 2024\|2025\|all（默认 all）<br>`limit`: 1-50（默认 10） |
-| 2 | `get_annual_summary` | 年度汇总：总销售额、订单数、客单价、月度趋势、品类占比、TOP 地区/商品、同比 | `year`: 2024\|2025（默认 2025） |
+| 1 | `get_sales_ranking` | 销售额排行榜，维度：商品 / 品类 / 地区 | `type`: product\|category\|region<br>`period`: 4 位年份(如 2023/2026)\|all（默认 all）<br>`limit`: 1-50（默认 10） |
+| 2 | `get_annual_summary` | 年度汇总：总销售额、订单数、客单价、月度趋势、品类占比、TOP 地区/商品、同比 | `year`: 4 位年份（默认 2025） |
 | 3 | `query_products` | 按品类 / 关键字筛选商品 | `category`: 品类 ID（可选，如 c1）<br>`keyword`: 关键字（可选）<br>`limit`: 1-100（默认 20） |
-| 4 | `query_orders` | 订单分页查询，可按地区 / 年份 / 品类过滤 | `region` / `year`: 2024\|2025 / `category`（均可选）<br>`page`: ≥1（默认 1）<br>`pageSize`: 1-100（默认 20） |
-| 5 | `get_active_users` | 活跃用户排行（按消费金额），可按年份 / 地区过滤 | `year`: 2024\|2025（可选）<br>`region`（可选）<br>`limit`: 1-50（默认 10） |
+| 4 | `query_orders` | 订单分页查询，可按地区 / 年份 / 品类过滤 | `region` / `year`(4 位年份) / `category`（均可选）<br>`page`: ≥1（默认 1）<br>`pageSize`: 1-100（默认 20） |
+| 5 | `get_active_users` | 活跃用户排行（按消费金额），可按年份 / 地区过滤 | `year`: 4 位年份（可选）<br>`region`（可选）<br>`limit`: 1-50（默认 10） |
+
+> 年份字段不再限制具体年份：`year` / `period` 接受任意 4 位年份，查不到数据的年份由数据服务返回空数组 / 0。
 
 每个工具返回标准化 JSON 文本（`json.data` 部分），字段含义见 `../data-server` 源码 `data-server/src/data.ts`。
 

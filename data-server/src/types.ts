@@ -42,7 +42,7 @@ export interface Category {
 }
 
 export type RankType = 'product' | 'category' | 'region';
-export type Period = '2024' | '2025' | 'all';
+export type Period = string;
 
 export interface RankItem {
   key: string;

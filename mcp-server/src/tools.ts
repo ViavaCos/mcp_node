@@ -33,7 +33,7 @@ export function registerTools(server: McpServer): void {
         '获取销售额排行榜，可按 商品(product)/品类(category)/地区(region) 维度，按 年份或全周期 统计。',
       inputSchema: {
         type: z.enum(['product', 'category', 'region']).describe('排行维度：product 商品 / category 品类 / region 地区'),
-        period: z.enum(['2024', '2025', 'all']).default('all').describe('统计周期：2024 / 2025 / all 全部'),
+        period: z.string().default('all').describe('统计周期：4 位年份(如 2024、2026) 或 all 全部'),
         limit: z.number().int().min(1).max(50).default(10).describe('返回条数（1-50）'),
       },
     },
@@ -50,7 +50,7 @@ export function registerTools(server: McpServer): void {
       title: '年度销售汇总',
       description: '获取某一年度的销售汇总：总销售额、订单数、客单价、按月趋势、品类占比、TOP 地区/商品、同比。',
       inputSchema: {
-        year: z.enum(['2024', '2025']).default('2025').describe('统计年份：2024 / 2025'),
+        year: z.string().default('2025').describe('统计年份，如 2024 / 2025 / 2026；默认 2025'),
       },
     },
     async ({ year }) => {
@@ -85,7 +85,7 @@ export function registerTools(server: McpServer): void {
       description: '分页查询订单，可按 地区/年份/品类 过滤，返回订单明细列表与分页信息。',
       inputSchema: {
         region: z.string().optional().describe('地区，如 华东'),
-        year: z.enum(['2024', '2025']).optional().describe('年份：2024 / 2025'),
+        year: z.string().optional().describe('年份，如 2024 / 2025 / 2026；留空表示全部'),
         category: z.string().optional().describe('品类 ID，如 c1'),
         page: z.number().int().min(1).default(1).describe('页码，从 1 开始'),
         pageSize: z.number().int().min(1).max(100).default(20).describe('每页条数'),
@@ -104,7 +104,7 @@ export function registerTools(server: McpServer): void {
       title: '活跃用户排行',
       description: '获取活跃用户排行，按 消费金额 排序，可按 年份/地区 过滤。',
       inputSchema: {
-        year: z.enum(['2024', '2025']).optional().describe('年份：2024 / 2025；留空表示全部'),
+        year: z.string().optional().describe('年份，如 2024 / 2025 / 2026；留空表示全部'),
         region: z.string().optional().describe('地区，如 华南'),
         limit: z.number().int().min(1).max(50).default(10).describe('返回条数（1-50）'),
       },

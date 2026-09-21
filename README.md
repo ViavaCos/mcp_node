@@ -2,7 +2,7 @@
 
 演示一条完整链路（全部使用 **TypeScript**，以 `tsx` 直接运行，无需构建步骤）：
 
-1. **数据服务（data-server）** — Node.js + Express，内存种子数据，提供 5 个 REST 查询接口。
+1. **数据服务（data-server）** — Node.js + Express + SQLite，内置种子数据（5000 商品 / 6000 用户 / 20000 订单，覆盖 2023–2026），提供 5 个 REST 查询接口（年份不限，查不到返回空）。
 2. **MCP 服务（mcp-server）** — 基于 `@modelcontextprotocol/sdk`，**stdio + Streamable HTTP 双传输**，把上面 5 个接口封装成 5 个 MCP 工具。默认以 Streamable HTTP（路线 A）启动，可对外提供地址给其它用户。
 3. **演示（两者都做）**
    - **Web 看板（demo-dashboard）**：后端作为 MCP 客户端（Streamable HTTP）接入 MCP 服务取数，前端 Chart.js 展示排行榜 / 年度汇总 / 品类占比 / 月度趋势 / 活跃用户，并提供“工具试玩面板”。
@@ -14,8 +14,9 @@
 
 ```
 mcp_node/
-├── data-server/      # 数据服务（5 个 REST 接口，端口 3000）
-│   ├── src/{types.ts, data.ts, server.ts}
+├── data-server/      # 数据服务（SQLite，5 个 REST 接口，端口 3000）
+│   ├── src/{types.ts, db.ts, data.ts, server.ts}
+│   ├── data.sqlite   # 首次启动自动生成（含种子数据）
 │   └── Dockerfile
 ├── mcp-server/       # MCP 服务（stdio + Streamable HTTP，5 个工具）
 │   ├── src/{index.ts, tools.ts}

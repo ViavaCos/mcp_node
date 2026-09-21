@@ -1,24 +1,25 @@
 # data-server — 电商销售数据服务
 
-基于 **Node.js + Express + TypeScript** 的内存数据服务，提供 5 个 REST 查询接口（JSON 返回）。
+基于 **Node.js + Express + TypeScript + SQLite** 的数据服务，提供 5 个 REST 查询接口（JSON 返回）。
 它是整个项目的「数据底座」：MCP 服务、看板、Agent 演示都通过 HTTP 调用这里的接口取数。
 
 ## 数据说明
 
-服务启动时在内存中生成一批**种子数据**（无需数据库）：
+数据存放在本地 **SQLite 数据库**（默认 `data-server/data.sqlite`）中。服务首次启动时若库为空，会自动建表并写入一批**种子数据**：
 
-- 8 个商品品类（手机 / 电脑 / 家电 / 服饰 / 食品 / 美妆 / 图书 / 运动）
-- 5 个销售地区（华东 / 华南 / 华北 / 西南 / 东北）
-- 300 个用户、若干商品、约 2600 笔订单
-- 订单覆盖 **2024、2025** 两个年度，含月份、地区、品类、金额、状态
+- 8 个商品品类（手机数码 / 家用电器 / 服饰鞋包 / 美妆个护 / 食品生鲜 / 图书文娱 / 运动户外 / 家居家装）
+- 5 个销售地区（华东 / 华北 / 华南 / 西部 / 中部）
+- **5000 个商品、6000 个用户、20000 笔订单**
+- 订单覆盖 **2023 – 2026** 四个年度，含月份、地区、品类、金额、状态
 
-> 数据为程序化随机生成，仅用于演示，每次启动重新生成（非持久化）。
+> 种子数据由确定性随机（固定种子）生成，可复现；写入后**持久化保存**在 SQLite 文件中，重启不会重复写入（库非空则跳过种子）。
 
 ## 环境变量
 
 | 变量 | 默认值 | 说明 |
 |---|---|---|
 | `DATA_SERVER_PORT` | `3000` | 服务监听端口 |
+| `SQLITE_PATH` | `data-server/data.sqlite` | SQLite 数据库文件路径 |
 
 服务显式监听 `0.0.0.0`（便于容器 / 反向代理访问）。
 
@@ -31,11 +32,14 @@ npm start            # tsx 直接运行 src/server.ts，监听 3000
 npm run typecheck    # tsc --noEmit 类型校验
 ```
 
+首次启动会自动创建 `data.sqlite` 并写入种子数据（约 2 万订单，通常数秒内完成）。
 启动成功日志：`[data-server] 已启动: http://0.0.0.0:3000`
 
 ## 接口列表
 
 所有接口统一返回 `{ code: 0, data: ... }`，出错为 `{ code: 1, message: ... }`。
+
+> 年份参数**不限制具体年份**：`year` / `period` 接受任意 4 位年份（如 `2023`、`2026`）。查不到数据的年份返回空数组或 0，不报错。
 
 ### 1. 销售额排行榜 `GET /api/sales/ranking`
 
@@ -44,18 +48,19 @@ npm run typecheck    # tsc --noEmit 类型校验
 | 参数 | 必填 | 取值 | 说明 |
 |---|---|---|---|
 | `type` | 否 | `product` / `category` / `region`（默认 `product`） | 排行维度 |
-| `period` | 否 | `2024` / `2025` / `all`（默认 `all`） | 统计周期 |
-| `limit` | 否 | 数字（默认 `10`） | 返回条数 |
+| `period` | 否 | 4 位年份（如 `2023`/`2024`/`2026`）或 `all`（默认 `all`） | 统计周期 |
+| `limit` | 否 | 数字（默认 `10`，1-50） | 返回条数 |
 
-返回：`{ type, period, items: [{ name, totalAmount, orderCount }] }`
+返回：`{ type, period, metric: 'amount', items: [{ key, name, totalAmount, totalQuantity }] }`
 
 ### 2. 年度汇总 `GET /api/sales/summary`
 
 | 参数 | 必填 | 取值 | 说明 |
 |---|---|---|---|
-| `year` | 否 | `2024` / `2025`（默认 `2025`） | 统计年份 |
+| `year` | 否 | 4 位年份（默认 `2025`） | 统计年份 |
 
-返回：`{ year, totalAmount, totalOrders, avgOrderValue, topRegion?: { region, totalAmount }, yoy?: { prevYear, prevAmount, growth }, monthlyTrend: [{ month, amount }] }`
+返回：`{ year, totalAmount, totalOrders, totalQuantity, avgOrderValue, monthlyTrend: [{ month, amount, orders }], categoryBreakdown: [{ categoryId, name, amount, quantity }], topRegion, topProduct, yoy }`
+（无数据年份：各金额为 `0`、`categoryBreakdown` 与 `monthlyTrend` 为空、`topRegion`/`topProduct`/`yoy` 为 `null`）
 
 ### 3. 商品查询 / 筛选 `GET /api/products`
 
@@ -63,31 +68,31 @@ npm run typecheck    # tsc --noEmit 类型校验
 |---|---|---|
 | `category` | 否 | 品类 ID（如 `c1`） |
 | `keyword` | 否 | 名称关键字（支持中文） |
-| `limit` | 否 | 返回条数（默认 `20`） |
+| `limit` | 否 | 返回条数（默认 `20`，1-100） |
 
-返回：`{ total, items: [{ id, name, category, categoryName, brand, price, salesCount, salesAmount }] }`
+返回：`{ total, items: [{ id, name, categoryId, categoryName, brand, price }] }`
 
 ### 4. 订单分页查询 `GET /api/orders`
 
 | 参数 | 必填 | 说明 |
 |---|---|---|
 | `region` | 否 | 地区名（如 `华东`） |
-| `year` | 否 | `2024` / `2025` |
+| `year` | 否 | 4 位年份（如 `2024`）；留空不按年过滤 |
 | `category` | 否 | 品类 ID |
 | `page` | 否 | 页码（默认 `1`） |
-| `pageSize` | 否 | 每页条数（默认 `20`） |
+| `pageSize` | 否 | 每页条数（默认 `20`，1-100） |
 
-返回：`{ total, page, pageSize, items: [{ id, userId, userName, category, categoryName, region, year, month, amount, status, date }] }`
+返回：`{ total, page, pageSize, totalPages, items: [{ id, date, productName, categoryName, region, quantity, amount }] }`
 
 ### 5. 活跃用户排行 `GET /api/users/active`
 
 | 参数 | 必填 | 说明 |
 |---|---|---|
-| `year` | 否 | `2024` / `2025`（默认 `2025`） |
+| `year` | 否 | 4 位年份（如 `2024`）；留空表示全部 |
 | `region` | 否 | 地区过滤 |
-| `limit` | 否 | 返回条数（默认 `10`） |
+| `limit` | 否 | 返回条数（默认 `10`，1-50） |
 
-返回：`{ year, region?, items: [{ name, region, totalAmount, orderCount }] }`
+返回：`{ year, region, items: [{ userId, name, region, orderCount, totalAmount }] }`
 
 ### 健康检查
 
@@ -95,8 +100,8 @@ npm run typecheck    # tsc --noEmit 类型校验
 
 ## 依赖
 
-- 运行时：`express`
-- 开发：`@types/express`、`@types/node`、`tsx`、`typescript`
+- 运行时：`express`、`better-sqlite3`（本地 SQLite 驱动，原生模块）
+- 开发：`@types/express`、`@types/node`、`@types/better-sqlite3`、`tsx`、`typescript`
 
 ## 目录结构
 
@@ -104,10 +109,12 @@ npm run typecheck    # tsc --noEmit 类型校验
 data-server/
 ├── package.json
 ├── tsconfig.json
+├── data.sqlite       # SQLite 数据库（首次启动自动生成，含种子数据）
 └── src/
     ├── types.ts      # 领域类型（Product/Order/User/Category/各类查询结果）
-    ├── data.ts       # 种子数据生成 + 5 个查询函数（queries）
-    └── server.ts     # Express 路由与启动
+    ├── db.ts         # SQLite 建库建表 + 种子数据生成（seedIfEmpty）
+    ├── data.ts       # 5 个查询函数（基于 SQLite 的 queries）
+    └── server.ts     # Express 路由与启动（启动前调用 bootstrapDb）
 ```
 
 > 其他服务接入：MCP 服务通过 `DATA_SERVER_URL`（默认 `http://localhost:3000`）调用本服务的接口。

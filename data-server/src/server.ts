@@ -1,6 +1,7 @@
 // data-server/src/server.ts
 import express, { type Request, type Response } from 'express';
 import { queries } from './data.js';
+import { bootstrapDb, SEED_COUNTS } from './db.js';
 import type { RankType, Period } from './types.js';
 
 const app = express();
@@ -14,21 +15,21 @@ const fail = (res: Response, msg: string): void => {
 };
 
 // 1) 销售额排行榜：按 商品 / 品类 / 地区
-// GET /api/sales/ranking?type=product|category|region&period=2024|2025|all&limit=10
+// GET /api/sales/ranking?type=product|category|region&period=<年份|all>&limit=10
 app.get('/api/sales/ranking', (req: Request, res: Response) => {
   const type = String(req.query.type || 'product') as RankType;
-  const period = String(req.query.period || 'all') as Period;
+  const period = String(req.query.period || 'all');
   const limit = Number(req.query.limit || 10);
   if (!['product', 'category', 'region'].includes(type)) return fail(res, 'type 必须是 product/category/region');
-  if (!['2024', '2025', 'all'].includes(period)) return fail(res, 'period 必须是 2024/2025/all');
-  ok(res, queries.salesRanking({ type, period, limit: Number.isFinite(limit) ? limit : 10 }));
+  if (period !== 'all' && !/^\d{4}$/.test(period)) return fail(res, 'period 必须是 4 位年份(如 2024) 或 all');
+  ok(res, queries.salesRanking({ type, period: period as Period, limit: Number.isFinite(limit) ? limit : 10 }));
 });
 
 // 2) 年度汇总
-// GET /api/sales/summary?year=2025
+// GET /api/sales/summary?year=<年份>
 app.get('/api/sales/summary', (req: Request, res: Response) => {
   const year = String(req.query.year || '2025');
-  if (!['2024', '2025'].includes(year)) return fail(res, 'year 必须是 2024/2025');
+  if (!/^\d{4}$/.test(year)) return fail(res, 'year 必须是 4 位年份(如 2024)');
   ok(res, queries.annualSummary({ year }));
 });
 
@@ -73,6 +74,9 @@ app.get('/api/users/active', (req: Request, res: Response) => {
 app.get('/health', (_req: Request, res: Response) => {
   res.json({ ok: true });
 });
+
+// 启动前确保 SQLite 表结构就绪、必要时写入种子数据
+bootstrapDb();
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`[data-server] 已启动: http://0.0.0.0:${PORT}`);
