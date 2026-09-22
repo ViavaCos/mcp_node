@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>API Key 管理台</title>
+  <style>
+    :root {
+      --bg: #f3faf6;
+      --panel: #ffffff;
+      --primary: #2f9e7e;
+      --primary-d: #1f7d63;
+      --accent: #3a9bd6;
+      --text: #1f2d2a;
+      --muted: #6b8079;
+      --border: #dcebe4;
+      --danger: #d9534f;
+      --warn-bg: #fff7e6;
+      --warn-bd: #ffd591;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+    .wrap { max-width: 960px; margin: 0 auto; padding: 28px 20px 60px; }
+    h1 { font-size: 22px; margin: 0 0 4px; }
+    .sub { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px 22px;
+      margin-bottom: 22px;
+      box-shadow: 0 1px 2px rgba(31, 125, 99, 0.04);
+    }
+    .panel h2 { font-size: 16px; margin: 0 0 16px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 18px; }
+    label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+    input {
+      width: 100%; padding: 9px 11px; border: 1px solid var(--border); border-radius: 8px;
+      font-size: 14px; color: var(--text); background: #fbfefe; outline: none;
+    }
+    input:focus { border-color: var(--primary); }
+    .full { grid-column: 1 / -1; }
+    button {
+      cursor: pointer; border: none; border-radius: 8px; font-size: 14px; padding: 9px 16px;
+      background: var(--primary); color: #fff; transition: background .15s;
+    }
+    button:hover { background: var(--primary-d); }
+    button.ghost { background: #eef6f2; color: var(--primary-d); }
+    button.ghost:hover { background: #e1efe8; }
+    button.danger { background: var(--danger); }
+    button.danger:hover { background: #c1433f; }
+    .actions { display: flex; gap: 10px; margin-top: 4px; }
+    .created {
+      margin-top: 16px; background: var(--warn-bg); border: 1px solid var(--warn-bd);
+      border-radius: 8px; padding: 12px 14px; font-size: 13px;
+    }
+    .created .key {
+      font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; font-size: 13px;
+      background: #fff; border: 1px solid var(--warn-bd); border-radius: 6px;
+      padding: 8px 10px; margin: 8px 0; word-break: break-all; display: flex;
+      justify-content: space-between; align-items: center; gap: 10px;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--border); }
+    th { color: var(--muted); font-weight: 600; }
+    td .tag {
+      display: inline-block; background: #eef6f2; color: var(--primary-d);
+      border-radius: 5px; padding: 1px 7px; font-size: 12px; margin: 1px 3px 1px 0;
+    }
+    .revoked { color: var(--danger); font-weight: 600; }
+    .empty { color: var(--muted); font-size: 13px; padding: 12px 4px; }
+    .toast {
+      position: fixed; top: 18px; right: 18px; background: var(--text); color: #fff;
+      padding: 10px 16px; border-radius: 8px; font-size: 13px; opacity: 0; transition: opacity .25s;
+    }
+    .toast.show { opacity: .95; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>API Key 管理台</h1>
+    <div class="sub">方案 B：为每个调用方申请稳定、可吊销的 API key，调用方用它兑换短命 JWT 后访问 MCP 资源。</div>
+
+    <div class="panel">
+      <h2>申请新的 API key</h2>
+      <div class="grid">
+        <div>
+          <label>拥有者（owner / 用户标识）</label>
+          <input id="owner" placeholder="例如 alice / team-b" />
+        </div>
+        <div>
+          <label>名称（备注）</label>
+          <input id="name" placeholder="例如 数据看板集成" />
+        </div>
+        <div>
+          <label>Scope（空格分隔，留空=全部）</label>
+          <input id="scopes" placeholder="mcp:tools" value="mcp:tools" />
+        </div>
+        <div>
+          <label>有效期（秒，留空=永不过期）</label>
+          <input id="ttl" placeholder="例如 2592000" />
+        </div>
+      </div>
+      <div class="actions" style="margin-top:16px">
+        <button id="createBtn">创建并申请</button>
+      </div>
+      <div id="createdBox"></div>
+    </div>
+
+    <div class="panel">
+      <h2>已申请的 API key</h2>
+      <div class="actions" style="margin-bottom:14px">
+        <button class="ghost" id="refreshBtn">刷新列表</button>
+      </div>
+      <div id="listBox"><div class="empty">加载中…</div></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    function toast(msg) {
+      const t = $('toast'); t.textContent = msg; t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 2200);
+    }
+    function fmt(ts) {
+      if (!ts) return '永久';
+      const d = new Date(ts);
+      return d.toLocaleString('zh-CN');
+    }
+    async function loadList() {
+      const box = $('listBox');
+      try {
+        const r = await fetch('/api/admin/apikeys');
+        const data = await r.json();
+        if (!Array.isArray(data)) { box.innerHTML = '<div class="empty">加载失败</div>'; return; }
+        if (!data.length) { box.innerHTML = '<div class="empty">暂无 key，请在上方申请。</div>'; return; }
+        box.innerHTML = `<table>
+          <thead><tr><th>owner</th><th>名称</th><th>scope</th><th>创建</th><th>过期</th><th>状态</th><th></th></tr></thead>
+          <tbody>${data.map(row => `
+            <tr>
+              <td>${esc(row.owner)}</td>
+              <td>${esc(row.name)}</td>
+              <td>${(row.scopes||[]).map(s=>`<span class="tag">${esc(s)}</span>`).join('')}</td>
+              <td>${fmt(row.createdAt)}</td>
+              <td>${fmt(row.expiresAt)}</td>
+              <td>${row.revoked ? '<span class="revoked">已吊销</span>' : '有效'}</td>
+              <td>${row.revoked ? '' : `<button class="danger" onclick="revoke('${row.keyId}')">吊销</button>`}</td>
+            </tr>`).join('')}</tbody>
+        </table>`;
+      } catch (e) {
+        box.innerHTML = '<div class="empty">请求出错：' + e.message + '</div>';
+      }
+    }
+    function esc(s) {
+      return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+    }
+    async function create() {
+      const owner = $('owner').value.trim();
+      const name = $('name').value.trim();
+      if (!owner || !name) { toast('owner 与 name 必填'); return; }
+      const body = { owner, name };
+      const scopes = $('scopes').value.trim();
+      if (scopes) body.scopes = scopes;
+      const ttl = $('ttl').value.trim();
+      if (ttl) body.ttlSeconds = Number(ttl);
+      const r = await fetch('/api/admin/apikeys', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      });
+      const data = await r.json();
+      if (!r.ok) { toast('创建失败：' + (data.error_description || data.error)); return; }
+      $('createdBox').innerHTML = `<div class="created">
+        <div>✅ 已创建（<b>${esc(data.owner)}</b> / ${esc(data.name)}）。原始 key 仅展示一次，请立即保存：</div>
+        <div class="key"><span id="rawKey">${esc(data.rawKey)}</span>
+          <button class="ghost" onclick="copyKey()">复制</button></div>
+        <div style="color:#a05a00">⚠️ 遗失需吊销后重新申请。</div>
+      </div>`;
+      toast('创建成功');
+      loadList();
+    }
+    function copyKey() {
+      const k = $('rawKey').textContent;
+      navigator.clipboard.writeText(k).then(() => toast('已复制')).catch(() => toast('复制失败'));
+    }
+    async function revoke(keyId) {
+      if (!confirm('确认吊销该 key？吊销后调用方将无法再兑换令牌。')) return;
+      const r = await fetch('/api/admin/apikeys/' + keyId, { method: 'DELETE' });
+      if (r.ok) { toast('已吊销'); loadList(); } else { toast('吊销失败'); }
+    }
+    $('createBtn').onclick = create;
+    $('refreshBtn').onclick = loadList;
+    loadList();
+  </script>
+</body>
+</html>

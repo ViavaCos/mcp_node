@@ -5,11 +5,31 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { ClientCredentialsProvider } from '@modelcontextprotocol/sdk/client/auth-extensions.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MCP_HTTP_URL = process.env.MCP_HTTP_URL || 'http://localhost:8089/mcp';
 
-const transport = new StreamableHTTPClientTransport(new URL(MCP_HTTP_URL));
+// OAuth 2.1：配置 AUTH_CLIENT_ID 后启用 client_credentials。
+// 方案 B：也可设置 AUTH_API_KEY，以「API key 兑换 JWT」方式接入（client_id=__apikey__ + client_secret=key）。
+// SDK 会自动完成：401 挑战 → RFC 9728 元数据发现 → 授权服务器发现 → 取令牌(resource+scope) → 重试
+const AUTH_API_KEY = process.env.AUTH_API_KEY;
+const AUTH_CLIENT_ID = process.env.AUTH_CLIENT_ID || (AUTH_API_KEY ? '__apikey__' : undefined);
+const AUTH_CLIENT_SECRET = AUTH_API_KEY || process.env.AUTH_CLIENT_SECRET || '';
+
+const transport = new StreamableHTTPClientTransport(
+  new URL(MCP_HTTP_URL),
+  AUTH_CLIENT_ID
+    ? {
+        authProvider: new ClientCredentialsProvider({
+          clientId: AUTH_CLIENT_ID,
+          clientSecret: AUTH_CLIENT_SECRET,
+          clientName: 'demo-agent',
+          scope: process.env.AUTH_SCOPE || 'mcp:tools',
+        }),
+      }
+    : {}
+);
 const client = new Client({ name: 'agent-client', version: '1.0.0' });
 await client.connect(transport);
 

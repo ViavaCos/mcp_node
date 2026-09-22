@@ -1,8 +1,37 @@
 # mcp-server/deploy/docker-compose.yml
-# 一键编排 data-server + mcp-server（路线 A）
+# 一键编排 auth-server + data-server + mcp-server（路线 A：OAuth 2.1 资源服务器）
 # 启动：在 mcp-server/ 目录执行  docker compose -f deploy/docker-compose.yml up -d
-# 对外暴露 mcp-server:8089；生产请在前方再叠加 nginx（见 nginx.conf.example）做 HTTPS + 鉴权
+#
+# 说明：
+#   - 本地演示：客户端走 http://localhost:9000（授权服务器）与 http://localhost:8089/mcp（MCP）
+#   - 生产部署：把 AUTH_ISSUER / RESOURCE_URL 设为公网 https 地址，并在三者前统一加 nginx
+#     （见 nginx.conf.example）。AUTH_ISSUER 必须与「令牌里的 iss」及「客户端发现到的地址」完全一致，
+#     否则 mcp-server 的 iss 校验会失败
+#   - AUTH_JWKS_URL 指向容器内网地址，供 mcp-server 拉取公钥（外网无需可达）
+#   - AUTH_DISCOVERY_URL 同样指向内网地址：使 AS 元数据发现在容器内可成功、issuer 镜像校验真正生效。
+#     发现文档里的 jwks_uri 是对外地址（容器内不可达），故由显式的 AUTH_JWKS_URL 优先。
 services:
+  auth-server:
+    build: ../auth-server
+    environment:
+      AUTH_PORT: "9000"
+      AUTH_ISSUER: "${AUTH_ISSUER:-http://localhost:9000}"
+      RESOURCE_URL: "${RESOURCE_URL:-http://localhost:8089/mcp}"
+      AUTH_CLIENT_ID: "${AUTH_CLIENT_ID:-demo-client}"
+      AUTH_CLIENT_SECRET: "${AUTH_CLIENT_SECRET:-demo-secret}"
+      # 浏览器 SPA 客户端的允许来源（默认由注册客户端的 redirect_uri 自动派生；此处显式声明便于生产调整）
+      AUTH_CORS_ORIGINS: "${AUTH_CORS_ORIGINS:-http://localhost:5173}"
+      AUTH_KEYS_PATH: "/app/data/keys.json"
+      # 方案 B：API key 存储与管理令牌（持久化到同一卷，容器重建后 key 不变）
+      AUTH_APIKEYS_PATH: "/app/data/apikeys.json"
+      AUTH_ADMIN_TOKEN: "${AUTH_ADMIN_TOKEN:-admin-secret}"
+    volumes:
+      # 持久化 RS256 密钥与 API key 存储，容器重建后密钥 / key 不变
+      - auth-keys:/app/data
+    ports:
+      - "9000:9000"
+    restart: unless-stopped
+
   data-server:
     build: ../data-server
     environment:
@@ -21,13 +50,35 @@ services:
       TRANSPORT: "http"
       PORT: "8089"
       DATA_SERVER_URL: "http://data-server:3000"
-      # 设置后 MCP 端点强制 Bearer 鉴权；留空则不鉴权（仅建议内网/演示）
-      MCP_TOKEN: "${MCP_TOKEN:-}"
+      # OAuth 2.1 资源服务器配置
+      AUTH_MODE: "jwt"
+      AUTH_ISSUER: "${AUTH_ISSUER:-http://localhost:9000}"
+      RESOURCE_URL: "${RESOURCE_URL:-http://localhost:8089/mcp}"
+      AUTH_JWKS_URL: "http://auth-server:9000/jwks"
+      # 用内网地址抓取 AS 发现文档，使 issuer 镜像校验在容器内也能真正生效
+      # （AUTH_ISSUER 仍须是对外地址，且与令牌 iss 一致）
+      # 注意：显式配置的 AUTH_JWKS_URL 优先于发现文档里的 jwks_uri —— 后者是对外地址，容器内不可达
+      AUTH_DISCOVERY_URL: "http://auth-server:9000/.well-known/openid-configuration"
+      AUTH_REQUIRED_SCOPES: "mcp:tools"
     ports:
       - "8089:8089"
     depends_on:
       - data-server
+      - auth-server
+    restart: unless-stopped
+
+  demo-admin:
+    build: ../demo-admin
+    environment:
+      ADMIN_PORT: "4100"
+      AUTH_SERVER_URL: "http://auth-server:9000"
+      AUTH_ADMIN_TOKEN: "${AUTH_ADMIN_TOKEN:-admin-secret}"
+    ports:
+      - "4100:4100"
+    depends_on:
+      - auth-server
     restart: unless-stopped
 
 volumes:
   data-sqlite:
+  auth-keys:

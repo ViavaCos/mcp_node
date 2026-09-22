@@ -1,0 +1,12 @@
+# 构建上下文排除项：避免把依赖与本地产物送进 Docker 构建上下文
+node_modules
+npm-debug.log*
+.DS_Store
+
+# 运行时生成的密钥（RS256 私钥，切勿进入镜像构建上下文）
+keys.json
+
+# 运行时生成的 SQLite 数据文件
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
